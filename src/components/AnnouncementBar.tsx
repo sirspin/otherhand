@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 
-const MESSAGE = "Free shipping on orders over $100 — OFFHAND branded goods";
+const MESSAGES = [
+  "Free shipping on orders over $100",
+  "OFFHAND branded goods",
+  "New drops coming soon",
+  "Limited runs — no restocks",
+];
+
+const TRACK = [...MESSAGES, ...MESSAGES].join("   —   ");
 
 export default function AnnouncementBar() {
   const [dismissed, setDismissed] = useState(false);
@@ -10,15 +17,22 @@ export default function AnnouncementBar() {
 
   return (
     <div
-      className="relative flex items-center justify-center px-8 py-2 text-center"
+      className="relative overflow-hidden py-2"
       style={{ background: "var(--color-olive)", color: "#fff" }}
     >
-      <p className="text-[11px] tracking-widest uppercase">
-        {MESSAGE}
-      </p>
+      <div className="marquee-track">
+        {[TRACK, TRACK].map((t, i) => (
+          <span
+            key={i}
+            className="text-[11px] tracking-widest uppercase whitespace-nowrap px-8"
+          >
+            {t}
+          </span>
+        ))}
+      </div>
       <button
         onClick={() => setDismissed(true)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white transition-colors text-base leading-none"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors text-base leading-none z-10"
         aria-label="Dismiss"
       >
         ×

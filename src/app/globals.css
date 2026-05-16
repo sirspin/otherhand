@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-syne);
 
   --color-bg: #ffffff;
   --color-text: #1a1918;
@@ -14,13 +14,9 @@
   --color-grey: #ebebeb;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-html {
-  font-size: 14px;
-}
+html { font-size: 14px; }
 
 body {
   background: var(--color-bg);
@@ -34,13 +30,45 @@ body {
   color: #fff;
 }
 
-/* External link arrow — animates diagonally on hover */
+/* Shared easing — Index Space's cubic-bezier */
+:root {
+  --ease: cubic-bezier(0.15, 0.85, 0.45, 1);
+}
+
+/* External link arrow — Actual Source mechanic */
 .ext-link::after {
   content: " ↗";
   display: inline-block;
   margin-left: 0.1em;
-  transition: transform 0.25s ease;
+  transition: transform 0.25s var(--ease);
 }
 .ext-link:hover::after {
   transform: translate(0.2em, -0.2em);
+}
+
+/* Marquee */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 22s linear infinite;
+}
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* Logo spin on hover — Braindead mechanic */
+@keyframes spin-once {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.logo-mark {
+  display: inline-block;
+  transition: transform 0.6s var(--ease);
+}
+.logo-mark:hover {
+  animation: spin-once 0.6s var(--ease) forwards;
 }

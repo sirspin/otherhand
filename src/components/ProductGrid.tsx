@@ -16,34 +16,53 @@ export default function ProductGrid() {
 
   return (
     <>
-      {/* Category nav — comma-list style like Actual Source */}
-      <nav className="mb-8 border-b pb-4 flex flex-wrap items-baseline gap-x-0" style={{ borderColor: "var(--color-border)" }}>
-        {categories.map((cat, i) => (
-          <span key={cat} className="inline">
+      {/* Category bar — Braindead-style pill containers */}
+      <div
+        className="flex items-center gap-2 py-5 border-b mb-8 overflow-x-auto"
+        style={{ borderColor: "var(--color-border)" }}
+      >
+        {categories.map((cat) => {
+          const active = activeCategory === cat;
+          return (
             <button
+              key={cat}
               onClick={() => setActiveCategory(cat)}
-              className="text-xs tracking-widest uppercase transition-colors"
+              className="shrink-0 px-4 py-1.5 text-[11px] tracking-widest uppercase border transition-all"
               style={{
-                color: activeCategory === cat ? "var(--color-accent)" : "var(--color-text)",
-                fontWeight: activeCategory === cat ? "600" : "400",
+                background: active ? "var(--color-text)" : "transparent",
+                color: active ? "#fff" : "var(--color-text)",
+                borderColor: "var(--color-border)",
+                transition: "background 0.25s var(--ease), color 0.25s var(--ease)",
               }}
-              onMouseEnter={e => { if (activeCategory !== cat) e.currentTarget.style.color = "var(--color-accent)"; }}
-              onMouseLeave={e => { if (activeCategory !== cat) e.currentTarget.style.color = "var(--color-text)"; }}
+              onMouseEnter={e => {
+                if (!active) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--color-accent)";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#fff";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--color-accent)";
+                }
+              }}
+              onMouseLeave={e => {
+                if (!active) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  (e.currentTarget as HTMLButtonElement).style.color = "var(--color-text)";
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--color-border)";
+                }
+              }}
             >
               {cat}
             </button>
-            {i < categories.length - 1 && (
-              <span className="text-xs mr-1" style={{ color: "var(--color-text)", opacity: 0.3 }}>,</span>
-            )}
-          </span>
-        ))}
-        <span className="ml-auto text-[11px] tracking-wide" style={{ color: "var(--color-text)", opacity: 0.35 }}>
+          );
+        })}
+        <span
+          className="ml-auto shrink-0 text-[11px] tracking-wide"
+          style={{ color: "var(--color-text)", opacity: 0.35 }}
+        >
           {available} available
         </span>
-      </nav>
+      </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
+      {/* Product grid */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {filtered.map((product) => (
           <ProductCard key={product.slug} product={product} />
         ))}
