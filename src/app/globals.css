@@ -3,6 +3,15 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-bg: #ffffff;
+  --color-text: #1a1918;
+  --color-border: #1a1918;
+  --color-accent: #e5402f;
+  --color-gold: #d4be7a;
+  --color-blue: #1478c8;
+  --color-olive: #3d3b26;
+  --color-grey: #ebebeb;
 }
 
 * {
@@ -14,13 +23,24 @@ html {
 }
 
 body {
-  background: #fff;
-  color: #000;
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: var(--font-geist-mono), monospace;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: #000;
+  background: var(--color-accent);
   color: #fff;
+}
+
+/* External link arrow — animates diagonally on hover */
+.ext-link::after {
+  content: " ↗";
+  display: inline-block;
+  margin-left: 0.1em;
+  transition: transform 0.25s ease;
+}
+.ext-link:hover::after {
+  transform: translate(0.2em, -0.2em);
 }
