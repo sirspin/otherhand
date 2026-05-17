@@ -51,6 +51,7 @@ export default function Header() {
               key={idx}
               data-entering={phase === "hold" ? "" : undefined}
               data-exiting={phase === "exiting" ? "" : undefined}
+              style={idx !== 0 ? { fontStyle: "italic", opacity: 0.45 } : undefined}
             >{SUFFIXES[idx]}</span></span>
           </span>
         </Link>
