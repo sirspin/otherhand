@@ -6,25 +6,16 @@ export default function EmailForm({ dark = false }: { dark?: boolean }) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const borderColor = dark ? "rgba(255,255,255,0.4)" : "var(--color-border)";
-  const bgColor = dark ? "transparent" : "var(--color-bg)";
   const textColor = dark ? "#fff" : "var(--color-text)";
-  const placeholderOpacity = dark ? "placeholder:text-white/40" : "placeholder:text-black/30";
+  const borderColor = dark ? "rgba(255,255,255,0.3)" : "rgba(26,25,24,0.25)";
 
   if (submitted) {
-    return (
-      <p
-        className="text-[11px] tracking-widest uppercase py-2"
-        style={{ color: textColor, opacity: 0.6 }}
-      >
-        You&apos;re on the list.
-      </p>
-    );
+    return <p className="text-xs" style={{ color: textColor, opacity: 0.5 }}>you&apos;re in.</p>;
   }
 
   return (
     <form
-      className="flex border"
+      className="flex border-b"
       style={{ borderColor }}
       onSubmit={(e) => { e.preventDefault(); if (email) setSubmitted(true); }}
     >
@@ -32,22 +23,18 @@ export default function EmailForm({ dark = false }: { dark?: boolean }) {
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="your@email.com"
-        className={`flex-1 px-3 py-2 text-xs tracking-wide outline-none min-w-0 bg-transparent ${placeholderOpacity}`}
+        placeholder="your email"
+        className="flex-1 py-1.5 text-xs bg-transparent outline-none min-w-0 placeholder:opacity-30"
         style={{ color: textColor }}
-        aria-label="Email address"
+        aria-label="email address"
         required
       />
       <button
         type="submit"
-        className="px-4 py-2 text-[11px] tracking-widest uppercase transition-opacity hover:opacity-70 whitespace-nowrap"
-        style={{
-          background: dark ? "rgba(255,255,255,0.15)" : "var(--color-text)",
-          color: dark ? "#fff" : "#fff",
-          borderLeft: `1px solid ${borderColor}`,
-        }}
+        className="pl-3 py-1.5 text-xs shrink-0 transition-opacity hover:opacity-50"
+        style={{ color: textColor }}
       >
-        Subscribe
+        →
       </button>
     </form>
   );

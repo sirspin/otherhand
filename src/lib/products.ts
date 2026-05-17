@@ -2,43 +2,47 @@ export type Product = {
   slug: string;
   title: string;
   price: number;
-  currency?: string;
+  description?: string;
+  sizes?: string[];
+  tags?: string[];
   sold?: boolean;
   image?: string;
-  sizes?: string[];
-  category?: string;
 };
 
 export const products: Product[] = [
   {
-    slug: "offhand-tee-black",
-    title: "Tee — Black",
+    slug: "tee-black",
+    title: "tee, black",
     price: 48,
-    sizes: ["S", "M", "L", "XL"],
-    category: "Apparel",
+    description: "we kept thinking about hands and vision.",
+    sizes: ["s", "m", "l", "xl"],
+    tags: ["wearable", "art"],
   },
   {
-    slug: "offhand-tee-white",
-    title: "Tee — White",
+    slug: "tee-white",
+    title: "tee, white",
     price: 48,
-    sizes: ["S", "M", "L", "XL"],
-    category: "Apparel",
+    description: "same idea, other way around.",
+    sizes: ["s", "m", "l", "xl"],
+    tags: ["wearable", "art"],
   },
   {
-    slug: "offhand-cap",
-    title: "Cap",
+    slug: "cap",
+    title: "cap",
     price: 36,
-    sizes: ["OS"],
-    category: "Accessories",
+    description: "one size.",
+    sizes: ["os"],
+    tags: ["wearable"],
   },
   {
-    slug: "offhand-tote",
-    title: "Tote",
+    slug: "tote",
+    title: "tote",
     price: 28,
-    sizes: ["OS"],
+    description: "carry things.",
+    sizes: ["os"],
+    tags: ["wearable"],
     sold: true,
-    category: "Accessories",
   },
 ];
 
-export const categories = ["All", "Apparel", "Accessories"];
+export const tags = ["all", "wearable", "reading", "science", "art", "listening"];
