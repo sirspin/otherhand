@@ -2,13 +2,34 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import CartDrawer from "./CartDrawer";
 
 const CART_COUNT = 0;
 
+const SUFFIXES = ["hand", "script", "work", "menu", "label"] as const;
+const HOLD_MS = 2800;
+const EXIT_MS = 300;
+
 export default function Header() {
   const [cartOpen, setCartOpen] = useState(false);
+  const [idx, setIdx] = useState(0);
+  const [phase, setPhase] = useState<"hold" | "exiting">("hold");
+
+  useEffect(() => {
+    let exitTimer: ReturnType<typeof setTimeout>;
+    const holdTimer = setInterval(() => {
+      setPhase("exiting");
+      exitTimer = setTimeout(() => {
+        setIdx(i => (i + 1) % SUFFIXES.length);
+        setPhase("hold");
+      }, EXIT_MS);
+    }, HOLD_MS);
+    return () => {
+      clearInterval(holdTimer);
+      clearTimeout(exitTimer);
+    };
+  }, []);
 
   return (
     <>
@@ -26,7 +47,11 @@ export default function Header() {
             onMouseEnter={e => (e.currentTarget.style.color = "var(--color-accent)")}
             onMouseLeave={e => (e.currentTarget.style.color = "var(--color-text)")}
           >
-            offhand
+            off<span className="suffix-ticker"><span
+              key={idx}
+              data-entering={phase === "hold" ? "" : undefined}
+              data-exiting={phase === "exiting" ? "" : undefined}
+            >{SUFFIXES[idx]}</span></span>
           </span>
         </Link>
 
