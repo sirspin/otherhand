@@ -7,7 +7,9 @@ import CartDrawer from "./CartDrawer";
 
 const CART_COUNT = 0;
 
-const SUFFIXES = ["hand", "script", "work", "menu", "label"] as const;
+// "other·hand", "other·wise", "other·where", "other·while", "other·world"
+// otherwhere / otherwhile are archaic English — elsewhere / at other times
+const SUFFIXES = ["hand", "wise", "where", "while", "world"] as const;
 const HOLD_MS = 2800;
 const EXIT_MS = 300;
 
@@ -39,7 +41,7 @@ export default function Header() {
       >
         <Link href="/" className="flex items-center gap-2 group">
           <span className="logo-mark w-7 h-7 relative shrink-0 inline-block">
-            <Image src="/logo.svg" alt="offhand" fill className="object-contain" priority />
+            <Image src="/logo.svg" alt="otherhand" fill className="object-contain" priority />
           </span>
           <span
             className="text-sm font-bold leading-none transition-colors"
@@ -47,7 +49,7 @@ export default function Header() {
             onMouseEnter={e => (e.currentTarget.style.color = "var(--color-accent)")}
             onMouseLeave={e => (e.currentTarget.style.color = "var(--color-text)")}
           >
-            off<span className="suffix-ticker"><span
+            other<span className="suffix-ticker"><span
               key={idx}
               data-entering={phase === "hold" ? "" : undefined}
               data-exiting={phase === "exiting" ? "" : undefined}

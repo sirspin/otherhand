@@ -14,8 +14,8 @@ const syne = Syne({
 });
 
 export const metadata: Metadata = {
-  title: "OFFHAND",
-  description: "OFFHAND branded goods.",
+  title: "OTHERHAND",
+  description: "OTHERHAND — things worth being interested in.",
 };
 
 export default function RootLayout({

@@ -10,7 +10,7 @@ export default function Footer() {
       <div className="flex flex-col gap-8 sm:flex-row sm:justify-between sm:gap-16">
         {/* About paragraph — no heading */}
         <p className="text-xs leading-relaxed max-w-xs" style={{ opacity: 0.45 }}>
-          offhand is about restoring the individual&apos;s ability to be casually
+          otherhand is about restoring the individual&apos;s ability to be casually
           interested in things. art, science, records, whatever deserves
           a second look. we make objects that come from that.
         </p>
@@ -33,7 +33,7 @@ export default function Footer() {
               instagram
             </a>
             <a
-              href="mailto:hello@offhand.com"
+              href="mailto:hello@otherhand.com"
               className="text-xs transition-opacity hover:opacity-60"
             >
               say hello
@@ -51,7 +51,7 @@ export default function Footer() {
           <span className="w-4 h-4 relative inline-block" style={{ opacity: 0.3 }}>
             <Image src="/logo.svg" alt="" fill className="object-contain" aria-hidden="true" />
           </span>
-          <span className="text-[10px]" style={{ opacity: 0.3 }}>offhand © {new Date().getFullYear()}</span>
+          <span className="text-[10px]" style={{ opacity: 0.3 }}>otherhand © {new Date().getFullYear()}</span>
         </div>
       </div>
     </footer>
