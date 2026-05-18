@@ -48,27 +48,3 @@ body {
 }
 .logo-mark:hover { animation: spin-once 0.6s var(--ease) forwards; }
 
-/* Wordmark suffix ticker */
-@keyframes suffix-enter {
-  from { opacity: 0; transform: translateY(60%); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes suffix-exit {
-  from { opacity: 1; transform: translateY(0); }
-  to   { opacity: 0; transform: translateY(-60%); }
-}
-.suffix-ticker {
-  display: inline-block;
-  overflow: hidden;
-  vertical-align: bottom;
-  line-height: inherit;
-}
-.suffix-ticker span {
-  display: inline-block;
-}
-.suffix-ticker span[data-entering] {
-  animation: suffix-enter 0.35s var(--ease) both;
-}
-.suffix-ticker span[data-exiting] {
-  animation: suffix-exit 0.3s var(--ease) both;
-}
