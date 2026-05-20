@@ -23,6 +23,7 @@ body {
   color: var(--color-text);
   font-family: var(--font-geist-mono), monospace;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
 ::selection {
