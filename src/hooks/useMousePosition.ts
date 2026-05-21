@@ -66,7 +66,7 @@ export function useMousePosition() {
 
       // ±30° gamma → full width, ±25° beta → full height
       const nx = Math.max(0, Math.min(1, 0.5 + dg / 60));
-      const ny = Math.max(0, Math.min(1, 0.5 + db / 50));
+      const ny = Math.max(0, Math.min(1, 0.5 - db / 50));
 
       const x = nx * window.innerWidth;
       const y = ny * window.innerHeight;
