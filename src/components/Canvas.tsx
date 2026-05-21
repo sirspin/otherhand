@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useMousePosition } from "@/hooks/useMousePosition";
-import { products } from "@/lib/products";
+import { products, type Product } from "@/lib/products";
 import EmailForm from "./EmailForm";
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -27,15 +27,13 @@ function edgeProx(
 // ── ProductLine ─────────────────────────────────────────────────────────────
 
 type ProductLineProps = {
-  product: (typeof products)[0];
+  product: Product;
   mouse: { x: number; y: number };
-  onHover: (slug: string | null) => void;
   isMobile: boolean;
-  tapped: boolean;
-  onTap: (slug: string) => void;
+  onSelect: (slug: string) => void;
 };
 
-function ProductLine({ product, mouse, onHover, isMobile, tapped, onTap }: ProductLineProps) {
+function ProductLine({ product, mouse, isMobile, onSelect }: ProductLineProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [hovered, setHovered] = useState(false);
@@ -52,24 +50,16 @@ function ProductLine({ product, mouse, onHover, isMobile, tapped, onTap }: Produ
   const d = rect
     ? dist(mouse.x, mouse.y, rect.left + rect.width / 2, rect.top + rect.height / 2)
     : 999;
-  const prox = mouse.x < 0 ? 0 : Math.max(0, 1 - d / 280);
+  const prox    = mouse.x < 0 ? 0 : Math.max(0, 1 - d / 280);
   const ambient = mouse.x < 0 ? 0 : Math.max(0, 1 - d / 520) * 0.18;
-  const active = hovered || tapped;
-  const opacity = active ? 1 : (isMobile ? 0.15 : 0.05) + prox * 0.3 + ambient;
-
-  const enter = () => { setHovered(true); onHover(product.slug); };
-  const leave = () => { setHovered(false); onHover(null); };
-
-  const handleClick = () => {
-    if (isMobile) onTap(product.slug);
-  };
+  const opacity = hovered ? 1 : (isMobile ? 0.15 : 0.05) + prox * 0.45 + ambient;
 
   return (
     <div
       ref={ref}
-      onMouseEnter={enter}
-      onMouseLeave={leave}
-      onClick={handleClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => onSelect(product.slug)}
       className="py-3 cursor-none select-none"
       style={{ opacity, transition: "opacity 0.4s cubic-bezier(0.15,0.85,0.45,1)" }}
     >
@@ -77,7 +67,7 @@ function ProductLine({ product, mouse, onHover, isMobile, tapped, onTap }: Produ
         <span
           className="text-sm"
           style={{
-            color: active ? "var(--color-accent)" : "var(--color-text)",
+            color: hovered ? "var(--color-accent)" : "var(--color-text)",
             transition: "color 0.25s cubic-bezier(0.15,0.85,0.45,1)",
           }}
         >
@@ -86,8 +76,8 @@ function ProductLine({ product, mouse, onHover, isMobile, tapped, onTap }: Produ
         <span
           className="text-xs tabular-nums"
           style={{
-            opacity: active ? 0.6 : 0,
-            transform: active ? "translateX(0)" : "translateX(8px)",
+            opacity: hovered ? 0.6 : 0,
+            transform: hovered ? "translateX(0)" : "translateX(8px)",
             transition: "opacity 0.3s, transform 0.3s cubic-bezier(0.15,0.85,0.45,1)",
           }}
         >
@@ -95,9 +85,10 @@ function ProductLine({ product, mouse, onHover, isMobile, tapped, onTap }: Produ
         </span>
       </div>
 
+      {/* Preview expand on hover */}
       <div
         style={{
-          maxHeight: active ? "80px" : "0px",
+          maxHeight: hovered ? "80px" : "0px",
           overflow: "hidden",
           transition: "max-height 0.35s cubic-bezier(0.15,0.85,0.45,1)",
         }}
@@ -114,6 +105,147 @@ function ProductLine({ product, mouse, onHover, isMobile, tapped, onTap }: Produ
         )}
       </div>
     </div>
+  );
+}
+
+// ── ProductDrawer ─────────────────────────────────────────────────────────────
+
+function ProductDrawer({ product, onClose }: { product: Product | null; onClose: () => void }) {
+  const open = product !== null;
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [open, onClose]);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40"
+        style={{
+          pointerEvents: open ? "auto" : "none",
+          background: "rgba(26,25,24,0.18)",
+          opacity: open ? 1 : 0,
+          transition: "opacity 0.4s cubic-bezier(0.15,0.85,0.45,1)",
+        }}
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div
+        className="fixed top-0 right-0 bottom-0 z-50 flex flex-col cursor-none"
+        style={{
+          width: "min(400px, 90vw)",
+          background: "var(--color-bg)",
+          borderLeft: "1px solid rgba(26,25,24,0.08)",
+          transform: open ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.5s cubic-bezier(0.15,0.85,0.45,1)",
+          pointerEvents: open ? "auto" : "none",
+        }}
+      >
+        {/* Close */}
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-xs cursor-none"
+          style={{ opacity: 0.35, background: "none", border: "none", padding: "4px 8px" }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={e => (e.currentTarget.style.opacity = "0.35")}
+        >
+          esc
+        </button>
+
+        {product && (
+          <>
+            {/* Image area */}
+            <div
+              className="w-full shrink-0 relative flex items-center justify-center"
+              style={{
+                height: "42vh",
+                background: "var(--color-grey)",
+              }}
+            >
+              {product.image ? (
+                <Image src={product.image} alt={product.title} fill className="object-cover" />
+              ) : (
+                <div style={{ width: 56, height: 74, position: "relative", opacity: 0.12 }}>
+                  <Image src="/logo.svg" alt="" fill className="object-contain" />
+                </div>
+              )}
+            </div>
+
+            {/* Details */}
+            <div className="flex flex-col flex-1 px-8 py-7 overflow-y-auto">
+              {/* Title + price */}
+              <div className="flex items-baseline justify-between gap-6 mb-5">
+                <h2 className="text-sm">{product.title}</h2>
+                <span className="text-xs tabular-nums shrink-0" style={{ opacity: 0.5 }}>
+                  {product.sold ? "gone" : `$${product.price}`}
+                </span>
+              </div>
+
+              <div style={{ borderTop: "1px solid rgba(26,25,24,0.07)", marginBottom: "1.25rem" }} />
+
+              {/* Description */}
+              {product.description && (
+                <p className="text-xs leading-relaxed mb-5" style={{ opacity: 0.55 }}>
+                  {product.description}
+                </p>
+              )}
+
+              {/* Sizes */}
+              {!product.sold && product.sizes && (
+                <div className="mb-6">
+                  <p className="text-[10px] mb-2 uppercase tracking-widest" style={{ opacity: 0.3 }}>
+                    sizes
+                  </p>
+                  <div className="flex gap-3 flex-wrap">
+                    {product.sizes.map(s => (
+                      <span
+                        key={s}
+                        className="text-xs border px-3 py-1"
+                        style={{ borderColor: "rgba(26,25,24,0.15)" }}
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {product.tags && (
+                <div className="flex gap-2 flex-wrap mb-8">
+                  {product.tags.map(t => (
+                    <span key={t} className="text-[10px]" style={{ opacity: 0.25 }}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-auto">
+                {product.sold ? (
+                  <p className="text-xs" style={{ opacity: 0.3 }}>this one is gone.</p>
+                ) : (
+                  <a
+                    href={`mailto:hello@otherhand.com?subject=interested in ${product.title}`}
+                    className="text-xs"
+                    style={{ color: "var(--color-accent)" }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.6")}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                  >
+                    say hello to order →
+                  </a>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -216,11 +348,11 @@ export default function Canvas() {
   const [vw, setVw] = useState(1440);
   const [vh, setVh] = useState(900);
   const [overlayOpen, setOverlayOpen] = useState(false);
-  const [tappedSlug, setTappedSlug] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
 
-  const handleTap = useCallback((slug: string) => {
-    setTappedSlug(s => s === slug ? null : slug);
-  }, []);
+  const selectedProduct = selectedSlug
+    ? (products.find(p => p.slug === selectedSlug) ?? null)
+    : null;
 
   useEffect(() => {
     const update = () => { setVw(window.innerWidth); setVh(window.innerHeight); };
@@ -240,20 +372,20 @@ export default function Canvas() {
     return () => window.removeEventListener("keydown", h);
   }, []);
 
-  const handleHover = useCallback((slug: string | null) => { void slug; }, []);
+  const handleSelect = useCallback((slug: string) => {
+    setSelectedSlug(s => s === slug ? null : slug);
+  }, []);
 
   const readingP = edgeProx(mouse.x, mouse.y, "tr", vw, vh, 180);
   const thingsP  = edgeProx(mouse.x, mouse.y, "br", vw, vh, 160);
   const aboutP   = edgeProx(mouse.x, mouse.y, "bl", vw, vh, 220);
 
-  // Cursor sneak
   const cursorW = 32, cursorH = 42, hotX = 16, hotY = 14;
   const speed = Math.sqrt(mouse.vx ** 2 + mouse.vy ** 2);
   const SNEAK = 80;
   const sneakX = !mouse.isOnScreen && speed > 0 ? (mouse.vx / speed) * SNEAK : 0;
   const sneakY = !mouse.isOnScreen && speed > 0 ? (mouse.vy / speed) * SNEAK : 0;
 
-  // On mobile: edge elements always faintly visible so there's something to discover
   const mobileEdgeBoost = isMobile && gyroActive ? 0.15 : 0;
 
   return (
@@ -334,10 +466,8 @@ export default function Canvas() {
               key={p.slug}
               product={p}
               mouse={mouse}
-              onHover={handleHover}
               isMobile={isMobile}
-              tapped={tappedSlug === p.slug}
-              onTap={handleTap}
+              onSelect={handleSelect}
             />
           ))}
           <div style={{ borderTop: "1px solid rgba(26,25,24,0.07)" }} />
@@ -355,7 +485,7 @@ export default function Canvas() {
               <Image src="/logo.svg" alt="" fill className="object-contain" />
             </div>
             <span
-              className="text-[11px] tracking-widest uppercase"
+              className="text-[11px] uppercase"
               style={{ opacity: 0.3, letterSpacing: "0.14em" }}
             >
               tilt to explore
@@ -363,6 +493,12 @@ export default function Canvas() {
           </button>
         )}
       </div>
+
+      {/* ── Product drawer ── */}
+      <ProductDrawer
+        product={selectedProduct}
+        onClose={() => setSelectedSlug(null)}
+      />
 
       {/* ── About overlay ── */}
       <AboutOverlay open={overlayOpen} onClose={() => setOverlayOpen(false)} />
