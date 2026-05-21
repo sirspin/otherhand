@@ -1,8 +1,7 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-syne);
+  --font-sans: var(--font-sono);
 
   --color-bg: #ffffff;
   --color-text: #1a1918;
@@ -21,7 +20,7 @@ html { font-size: 14px; }
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-geist-mono), monospace;
+  font-family: var(--font-sono), sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }

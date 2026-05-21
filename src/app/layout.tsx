@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Syne } from "next/font/google";
+import { Sono } from "next/font/google";
 import "./globals.css";
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const sono = Sono({
+  variable: "--font-sono",
   subsets: ["latin"],
-});
-
-const syne = Syne({
-  variable: "--font-syne",
-  subsets: ["latin"],
-  weight: ["700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -22,7 +16,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geistMono.variable} ${syne.variable}`}>
+    <html lang="en" className={sono.variable}>
       <body className="min-h-screen flex flex-col">{children}</body>
     </html>
   );
