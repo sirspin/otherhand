@@ -7,6 +7,7 @@ export type Product = {
   tags?: string[];
   sold?: boolean;
   image?: string;
+  stripePriceId?: string; // set in Stripe dashboard → Products → copy price ID (price_xxx)
 };
 
 export const products: Product[] = [

@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useMousePosition } from "@/hooks/useMousePosition";
-import { products, type Product } from "@/lib/products";
+import { products } from "@/lib/products";
+import { type Product } from "@/lib/products";
 import EmailForm from "./EmailForm";
+import ProductDrawer from "./ProductDrawer";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -105,147 +107,6 @@ function ProductLine({ product, mouse, isMobile, onSelect }: ProductLineProps) {
         )}
       </div>
     </div>
-  );
-}
-
-// ── ProductDrawer ─────────────────────────────────────────────────────────────
-
-function ProductDrawer({ product, onClose }: { product: Product | null; onClose: () => void }) {
-  const open = product !== null;
-
-  useEffect(() => {
-    if (!open) return;
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [open, onClose]);
-
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40"
-        style={{
-          pointerEvents: open ? "auto" : "none",
-          background: "rgba(26,25,24,0.18)",
-          opacity: open ? 1 : 0,
-          transition: "opacity 0.4s cubic-bezier(0.15,0.85,0.45,1)",
-        }}
-        onClick={onClose}
-      />
-
-      {/* Panel */}
-      <div
-        className="fixed top-0 right-0 bottom-0 z-50 flex flex-col cursor-none"
-        style={{
-          width: "min(400px, 90vw)",
-          background: "var(--color-bg)",
-          borderLeft: "1px solid rgba(26,25,24,0.08)",
-          transform: open ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.5s cubic-bezier(0.15,0.85,0.45,1)",
-          pointerEvents: open ? "auto" : "none",
-        }}
-      >
-        {/* Close */}
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 text-xs cursor-none"
-          style={{ opacity: 0.35, background: "none", border: "none", padding: "4px 8px" }}
-          onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
-          onMouseLeave={e => (e.currentTarget.style.opacity = "0.35")}
-        >
-          esc
-        </button>
-
-        {product && (
-          <>
-            {/* Image area */}
-            <div
-              className="w-full shrink-0 relative flex items-center justify-center"
-              style={{
-                height: "42vh",
-                background: "var(--color-grey)",
-              }}
-            >
-              {product.image ? (
-                <Image src={product.image} alt={product.title} fill className="object-cover" />
-              ) : (
-                <div style={{ width: 56, height: 74, position: "relative", opacity: 0.12 }}>
-                  <Image src="/logo.svg" alt="" fill className="object-contain" />
-                </div>
-              )}
-            </div>
-
-            {/* Details */}
-            <div className="flex flex-col flex-1 px-8 py-7 overflow-y-auto">
-              {/* Title + price */}
-              <div className="flex items-baseline justify-between gap-6 mb-5">
-                <h2 className="text-sm">{product.title}</h2>
-                <span className="text-xs tabular-nums shrink-0" style={{ opacity: 0.5 }}>
-                  {product.sold ? "gone" : `$${product.price}`}
-                </span>
-              </div>
-
-              <div style={{ borderTop: "1px solid rgba(26,25,24,0.07)", marginBottom: "1.25rem" }} />
-
-              {/* Description */}
-              {product.description && (
-                <p className="text-xs leading-relaxed mb-5" style={{ opacity: 0.55 }}>
-                  {product.description}
-                </p>
-              )}
-
-              {/* Sizes */}
-              {!product.sold && product.sizes && (
-                <div className="mb-6">
-                  <p className="text-[10px] mb-2 uppercase tracking-widest" style={{ opacity: 0.3 }}>
-                    sizes
-                  </p>
-                  <div className="flex gap-3 flex-wrap">
-                    {product.sizes.map(s => (
-                      <span
-                        key={s}
-                        className="text-xs border px-3 py-1"
-                        style={{ borderColor: "rgba(26,25,24,0.15)" }}
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Tags */}
-              {product.tags && (
-                <div className="flex gap-2 flex-wrap mb-8">
-                  {product.tags.map(t => (
-                    <span key={t} className="text-[10px]" style={{ opacity: 0.25 }}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-auto">
-                {product.sold ? (
-                  <p className="text-xs" style={{ opacity: 0.3 }}>this one is gone.</p>
-                ) : (
-                  <a
-                    href={`mailto:hello@otherhand.com?subject=interested in ${product.title}`}
-                    className="text-xs"
-                    style={{ color: "var(--color-accent)" }}
-                    onMouseEnter={e => (e.currentTarget.style.opacity = "0.6")}
-                    onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                  >
-                    say hello to order →
-                  </a>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </>
   );
 }
 
