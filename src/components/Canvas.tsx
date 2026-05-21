@@ -31,13 +31,14 @@ type ProductLineProps = {
   mouse: { x: number; y: number };
   onHover: (slug: string | null) => void;
   isMobile: boolean;
+  tapped: boolean;
+  onTap: (slug: string) => void;
 };
 
-function ProductLine({ product, mouse, onHover, isMobile }: ProductLineProps) {
+function ProductLine({ product, mouse, onHover, isMobile, tapped, onTap }: ProductLineProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [hovered, setHovered] = useState(false);
-  const [tapped, setTapped] = useState(false);
 
   useEffect(() => {
     const update = () => {
@@ -59,7 +60,7 @@ function ProductLine({ product, mouse, onHover, isMobile }: ProductLineProps) {
   const leave = () => { setHovered(false); onHover(null); };
 
   const handleClick = () => {
-    if (isMobile) setTapped(t => !t);
+    if (isMobile) onTap(product.slug);
   };
 
   return (
@@ -214,6 +215,11 @@ export default function Canvas() {
   const [vw, setVw] = useState(1440);
   const [vh, setVh] = useState(900);
   const [overlayOpen, setOverlayOpen] = useState(false);
+  const [tappedSlug, setTappedSlug] = useState<string | null>(null);
+
+  const handleTap = useCallback((slug: string) => {
+    setTappedSlug(s => s === slug ? null : slug);
+  }, []);
 
   useEffect(() => {
     const update = () => { setVw(window.innerWidth); setVh(window.innerHeight); };
@@ -329,6 +335,8 @@ export default function Canvas() {
               mouse={mouse}
               onHover={handleHover}
               isMobile={isMobile}
+              tapped={tappedSlug === p.slug}
+              onTap={handleTap}
             />
           ))}
           <div style={{ borderTop: "1px solid rgba(26,25,24,0.07)" }} />
