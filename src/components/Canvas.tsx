@@ -53,8 +53,9 @@ function ProductLine({ product, mouse, onHover, isMobile, tapped, onTap }: Produ
     ? dist(mouse.x, mouse.y, rect.left + rect.width / 2, rect.top + rect.height / 2)
     : 999;
   const prox = mouse.x < 0 ? 0 : Math.max(0, 1 - d / 280);
+  const ambient = mouse.x < 0 ? 0 : Math.max(0, 1 - d / 520) * 0.18;
   const active = hovered || tapped;
-  const opacity = active ? 1 : (isMobile ? 0.15 : 0.05) + prox * 0.3;
+  const opacity = active ? 1 : (isMobile ? 0.15 : 0.05) + prox * 0.3 + ambient;
 
   const enter = () => { setHovered(true); onHover(product.slug); };
   const leave = () => { setHovered(false); onHover(null); };
