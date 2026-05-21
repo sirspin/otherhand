@@ -246,6 +246,12 @@ export default function Canvas() {
   const hotX = cursorW / 2;
   const hotY = 14;
 
+  // Sneak: when cursor leaves, slide it further in the exit direction
+  const SNEAK = 80;
+  const speed = Math.sqrt(mouse.vx ** 2 + mouse.vy ** 2);
+  const sneakX = !mouse.isOnScreen && speed > 0 ? (mouse.vx / speed) * SNEAK : 0;
+  const sneakY = !mouse.isOnScreen && speed > 0 ? (mouse.vy / speed) * SNEAK : 0;
+
   return (
     <>
       <div
@@ -338,7 +344,7 @@ export default function Canvas() {
       {/* ── About overlay ── */}
       <AboutOverlay open={overlayOpen} onClose={() => setOverlayOpen(false)} />
 
-      {/* ── Custom cursor — the hand guy, inverts white on dark bg ── */}
+      {/* ── Custom cursor — the hand guy, sneaks off-screen on leave ── */}
       {mouse.x > 0 && (
         <div
           className="fixed pointer-events-none"
@@ -348,8 +354,9 @@ export default function Canvas() {
             top: mouse.y - hotY,
             width: cursorW,
             height: cursorH,
+            transform: `translate(${sneakX}px, ${sneakY}px)`,
             filter: overlayOpen ? "invert(1) brightness(10)" : "none",
-            transition: "filter 0.4s cubic-bezier(0.15,0.85,0.45,1)",
+            transition: "transform 0.55s cubic-bezier(0.15,0.85,0.45,1), filter 0.4s cubic-bezier(0.15,0.85,0.45,1)",
           }}
         >
           <Image src="/logo.svg" alt="" fill className="object-contain" />
