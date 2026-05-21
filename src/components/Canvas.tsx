@@ -30,12 +30,14 @@ type ProductLineProps = {
   product: (typeof products)[0];
   mouse: { x: number; y: number };
   onHover: (slug: string | null) => void;
+  isMobile: boolean;
 };
 
-function ProductLine({ product, mouse, onHover }: ProductLineProps) {
+function ProductLine({ product, mouse, onHover, isMobile }: ProductLineProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [hovered, setHovered] = useState(false);
+  const [tapped, setTapped] = useState(false);
 
   useEffect(() => {
     const update = () => {
@@ -50,25 +52,30 @@ function ProductLine({ product, mouse, onHover }: ProductLineProps) {
     ? dist(mouse.x, mouse.y, rect.left + rect.width / 2, rect.top + rect.height / 2)
     : 999;
   const prox = mouse.x < 0 ? 0 : Math.max(0, 1 - d / 280);
-  const opacity = hovered ? 1 : 0.05 + prox * 0.3;
+  const active = hovered || tapped;
+  const opacity = active ? 1 : (isMobile ? 0.15 : 0.05) + prox * 0.3;
 
   const enter = () => { setHovered(true); onHover(product.slug); };
   const leave = () => { setHovered(false); onHover(null); };
+
+  const handleClick = () => {
+    if (isMobile) setTapped(t => !t);
+  };
 
   return (
     <div
       ref={ref}
       onMouseEnter={enter}
       onMouseLeave={leave}
+      onClick={handleClick}
       className="py-3 cursor-none select-none"
       style={{ opacity, transition: "opacity 0.4s cubic-bezier(0.15,0.85,0.45,1)" }}
     >
-      {/* Title row */}
       <div className="flex items-baseline justify-between gap-8">
         <span
           className="text-sm"
           style={{
-            color: hovered ? "var(--color-accent)" : "var(--color-text)",
+            color: active ? "var(--color-accent)" : "var(--color-text)",
             transition: "color 0.25s cubic-bezier(0.15,0.85,0.45,1)",
           }}
         >
@@ -77,8 +84,8 @@ function ProductLine({ product, mouse, onHover }: ProductLineProps) {
         <span
           className="text-xs tabular-nums"
           style={{
-            opacity: hovered ? 0.6 : 0,
-            transform: hovered ? "translateX(0)" : "translateX(8px)",
+            opacity: active ? 0.6 : 0,
+            transform: active ? "translateX(0)" : "translateX(8px)",
             transition: "opacity 0.3s, transform 0.3s cubic-bezier(0.15,0.85,0.45,1)",
           }}
         >
@@ -86,10 +93,9 @@ function ProductLine({ product, mouse, onHover }: ProductLineProps) {
         </span>
       </div>
 
-      {/* Expandable detail */}
       <div
         style={{
-          maxHeight: hovered ? "80px" : "0px",
+          maxHeight: active ? "80px" : "0px",
           overflow: "hidden",
           transition: "max-height 0.35s cubic-bezier(0.15,0.85,0.45,1)",
         }}
@@ -119,10 +125,7 @@ function AboutOverlay({ open, onClose }: { open: boolean; onClose: () => void })
     return () => window.removeEventListener("keydown", h);
   }, [open, onClose]);
 
-  const linkStyle = {
-    color: "#fff" as const,
-    transition: "opacity 0.2s",
-  };
+  const linkStyle = { color: "#fff" as const, transition: "opacity 0.2s" };
 
   return (
     <div
@@ -187,7 +190,6 @@ function AboutOverlay({ open, onClose }: { open: boolean; onClose: () => void })
         <EmailForm dark />
       </div>
 
-      {/* Footer bar */}
       <div
         className="absolute bottom-0 left-0 right-0 px-10 sm:px-16 py-5 flex items-center justify-between border-t"
         style={{ borderColor: "rgba(255,255,255,0.1)" }}
@@ -208,9 +210,9 @@ function AboutOverlay({ open, onClose }: { open: boolean; onClose: () => void })
 
 export default function Canvas() {
   const mouse = useMousePosition();
+  const { isMobile, gyroActive, enableGyro } = mouse;
   const [vw, setVw] = useState(1440);
   const [vh, setVh] = useState(900);
-  const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
 
   useEffect(() => {
@@ -220,7 +222,6 @@ export default function Canvas() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Spacebar toggles overlay
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === " " && e.target === document.body) {
@@ -232,25 +233,21 @@ export default function Canvas() {
     return () => window.removeEventListener("keydown", h);
   }, []);
 
-  const handleHover = useCallback((slug: string | null) => {
-    setHoveredSlug(slug);
-  }, []);
+  const handleHover = useCallback((slug: string | null) => { void slug; }, []);
 
   const readingP = edgeProx(mouse.x, mouse.y, "tr", vw, vh, 180);
   const thingsP  = edgeProx(mouse.x, mouse.y, "br", vw, vh, 160);
   const aboutP   = edgeProx(mouse.x, mouse.y, "bl", vw, vh, 220);
 
-  // Cursor hotspot: centered horizontally, tip ~1/3 from top
-  const cursorW = 32;
-  const cursorH = 42;
-  const hotX = cursorW / 2;
-  const hotY = 14;
-
-  // Sneak: when cursor leaves, slide it further in the exit direction
-  const SNEAK = 80;
+  // Cursor sneak
+  const cursorW = 32, cursorH = 42, hotX = 16, hotY = 14;
   const speed = Math.sqrt(mouse.vx ** 2 + mouse.vy ** 2);
+  const SNEAK = 80;
   const sneakX = !mouse.isOnScreen && speed > 0 ? (mouse.vx / speed) * SNEAK : 0;
   const sneakY = !mouse.isOnScreen && speed > 0 ? (mouse.vy / speed) * SNEAK : 0;
+
+  // On mobile: edge elements always faintly visible so there's something to discover
+  const mobileEdgeBoost = isMobile && gyroActive ? 0.15 : 0;
 
   return (
     <>
@@ -258,7 +255,7 @@ export default function Canvas() {
         className="fixed inset-0 cursor-none"
         style={{ background: "var(--color-bg)", overflow: "hidden" }}
       >
-        {/* ── Mark — always visible, top-left ── */}
+        {/* ── Mark — top-left ── */}
         <button
           className="logo-mark fixed z-40 cursor-none"
           style={{ top: 22, left: 22, width: 30, height: 40, background: "none", border: "none", padding: 0 }}
@@ -268,30 +265,28 @@ export default function Canvas() {
           <Image src="/logo.svg" alt="" fill className="object-contain" priority />
         </button>
 
-        {/* ── "reading" — top-right, cursor-revealed ── */}
+        {/* ── "reading" — top-right ── */}
         <a
           href="/reading"
           className="fixed z-30 text-xs cursor-none"
           style={{
-            top: 26,
-            right: 24,
-            opacity: readingP,
+            top: 26, right: 24,
+            opacity: Math.max(mobileEdgeBoost, readingP),
             transform: `translateX(${(1 - readingP) * 10}px)`,
             transition: "opacity 0.4s, transform 0.4s cubic-bezier(0.15,0.85,0.45,1)",
-            pointerEvents: readingP > 0.05 ? "auto" : "none",
+            pointerEvents: readingP > 0.05 || mobileEdgeBoost > 0 ? "auto" : "none",
             color: "var(--color-text)",
           }}
         >
           reading
         </a>
 
-        {/* ── "things" — bottom-right, cursor-revealed, dimmer ── */}
+        {/* ── "things" — bottom-right ── */}
         <span
           className="fixed z-30 text-xs"
           style={{
-            bottom: 24,
-            right: 24,
-            opacity: thingsP * 0.25,
+            bottom: 24, right: 24,
+            opacity: Math.max(mobileEdgeBoost, thingsP * 0.25),
             transition: "opacity 0.4s",
             pointerEvents: "none",
             color: "var(--color-text)",
@@ -300,14 +295,13 @@ export default function Canvas() {
           things
         </span>
 
-        {/* ── About note — bottom-left, cursor-revealed ── */}
+        {/* ── About note — bottom-left ── */}
         <p
           className="fixed z-30 text-xs leading-relaxed"
           style={{
-            bottom: 24,
-            left: 68,
+            bottom: 24, left: 68,
             maxWidth: 260,
-            opacity: aboutP * 0.4,
+            opacity: Math.max(mobileEdgeBoost * 0.6, aboutP * 0.4),
             transform: `translateY(${(1 - aboutP) * 6}px)`,
             transition: "opacity 0.5s, transform 0.5s cubic-bezier(0.15,0.85,0.45,1)",
             pointerEvents: "none",
@@ -318,12 +312,11 @@ export default function Canvas() {
           art, science, records, whatever deserves attention.
         </p>
 
-        {/* ── Product field — centered ── */}
+        {/* ── Product field ── */}
         <div
           className="fixed z-20"
           style={{
-            top: "50%",
-            left: "50%",
+            top: "50%", left: "50%",
             transform: "translate(-50%, -50%)",
             width: "min(460px, 78vw)",
           }}
@@ -335,17 +328,38 @@ export default function Canvas() {
               product={p}
               mouse={mouse}
               onHover={handleHover}
+              isMobile={isMobile}
             />
           ))}
           <div style={{ borderTop: "1px solid rgba(26,25,24,0.07)" }} />
         </div>
+
+        {/* ── Mobile: tap-to-start prompt ── */}
+        {isMobile && !gyroActive && (
+          <button
+            onClick={enableGyro}
+            className="fixed inset-0 z-30 flex flex-col items-center justify-end pb-16 gap-3"
+            style={{ background: "transparent", border: "none" }}
+            aria-label="enable tilt to explore"
+          >
+            <div style={{ position: "relative", width: 28, height: 36, opacity: 0.5 }}>
+              <Image src="/logo.svg" alt="" fill className="object-contain" />
+            </div>
+            <span
+              className="text-[11px] tracking-widest uppercase"
+              style={{ opacity: 0.3, letterSpacing: "0.14em" }}
+            >
+              tilt to explore
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ── About overlay ── */}
       <AboutOverlay open={overlayOpen} onClose={() => setOverlayOpen(false)} />
 
-      {/* ── Custom cursor — the hand guy, sneaks off-screen on leave ── */}
-      {mouse.x > 0 && (
+      {/* ── Custom cursor (desktop only) ── */}
+      {!isMobile && mouse.x > 0 && (
         <div
           className="fixed pointer-events-none"
           style={{
@@ -362,9 +376,6 @@ export default function Canvas() {
           <Image src="/logo.svg" alt="" fill className="object-contain" />
         </div>
       )}
-
-      {/* suppress unused var warning */}
-      {hoveredSlug && null}
     </>
   );
 }
