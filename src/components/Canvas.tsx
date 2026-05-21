@@ -60,7 +60,7 @@ function ProductLine({ product, mouse, onHover }: ProductLineProps) {
       ref={ref}
       onMouseEnter={enter}
       onMouseLeave={leave}
-      className="py-3 cursor-default select-none"
+      className="py-3 cursor-none select-none"
       style={{ opacity, transition: "opacity 0.4s cubic-bezier(0.15,0.85,0.45,1)" }}
     >
       {/* Title row */}
@@ -126,7 +126,7 @@ function AboutOverlay({ open, onClose }: { open: boolean; onClose: () => void })
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-center px-10 sm:px-16"
+      className="fixed inset-0 z-50 flex flex-col justify-center px-10 sm:px-16 cursor-none"
       style={{
         background: "var(--color-olive)",
         transform: open ? "translateY(0)" : "translateY(100%)",
@@ -187,12 +187,19 @@ function AboutOverlay({ open, onClose }: { open: boolean; onClose: () => void })
         <EmailForm dark />
       </div>
 
-      <p
-        className="absolute bottom-6 right-8 text-[10px]"
-        style={{ color: "#fff", opacity: 0.25 }}
+      {/* Footer bar */}
+      <div
+        className="absolute bottom-0 left-0 right-0 px-10 sm:px-16 py-5 flex items-center justify-between border-t"
+        style={{ borderColor: "rgba(255,255,255,0.1)" }}
+        onClick={e => e.stopPropagation()}
       >
-        esc or click to close
-      </p>
+        <span className="text-[10px]" style={{ color: "#fff", opacity: 0.25 }}>
+          © {new Date().getFullYear()} otherhand. all rights reserved.
+        </span>
+        <span className="text-[10px]" style={{ color: "#fff", opacity: 0.2 }}>
+          esc · space · click to close
+        </span>
+      </div>
     </div>
   );
 }
@@ -213,6 +220,18 @@ export default function Canvas() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
+  // Spacebar toggles overlay
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.key === " " && e.target === document.body) {
+        e.preventDefault();
+        setOverlayOpen(o => !o);
+      }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
+
   const handleHover = useCallback((slug: string | null) => {
     setHoveredSlug(slug);
   }, []);
@@ -221,16 +240,22 @@ export default function Canvas() {
   const thingsP  = edgeProx(mouse.x, mouse.y, "br", vw, vh, 160);
   const aboutP   = edgeProx(mouse.x, mouse.y, "bl", vw, vh, 220);
 
+  // Cursor hotspot: centered horizontally, tip ~1/3 from top
+  const cursorW = 32;
+  const cursorH = 42;
+  const hotX = cursorW / 2;
+  const hotY = 14;
+
   return (
     <>
       <div
-        className="fixed inset-0"
+        className="fixed inset-0 cursor-none"
         style={{ background: "var(--color-bg)", overflow: "hidden" }}
       >
         {/* ── Mark — always visible, top-left ── */}
         <button
-          className="logo-mark fixed z-40"
-          style={{ top: 22, left: 22, width: 30, height: 40, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+          className="logo-mark fixed z-40 cursor-none"
+          style={{ top: 22, left: 22, width: 30, height: 40, background: "none", border: "none", padding: 0 }}
           onClick={() => setOverlayOpen(o => !o)}
           aria-label="about"
         >
@@ -240,7 +265,7 @@ export default function Canvas() {
         {/* ── "reading" — top-right, cursor-revealed ── */}
         <a
           href="/reading"
-          className="fixed z-30 text-xs"
+          className="fixed z-30 text-xs cursor-none"
           style={{
             top: 26,
             right: 24,
@@ -254,7 +279,7 @@ export default function Canvas() {
           reading
         </a>
 
-        {/* ── "things" — bottom-right, cursor-revealed, dimmer (you're already here) ── */}
+        {/* ── "things" — bottom-right, cursor-revealed, dimmer ── */}
         <span
           className="fixed z-30 text-xs"
           style={{
@@ -308,27 +333,31 @@ export default function Canvas() {
           ))}
           <div style={{ borderTop: "1px solid rgba(26,25,24,0.07)" }} />
         </div>
-
-        {/* ── Cursor ghost — follows cursor when product hovered ── */}
-        {hoveredSlug && mouse.x > 0 && (
-          <div
-            className="fixed z-50 pointer-events-none"
-            style={{
-              left: mouse.x + 18,
-              top: mouse.y - 28,
-              width: 40,
-              height: 54,
-              opacity: 0.1,
-              transition: "left 0.06s linear, top 0.06s linear",
-            }}
-          >
-            <Image src="/logo.svg" alt="" fill className="object-contain" />
-          </div>
-        )}
       </div>
 
       {/* ── About overlay ── */}
       <AboutOverlay open={overlayOpen} onClose={() => setOverlayOpen(false)} />
+
+      {/* ── Custom cursor — the hand guy, inverts white on dark bg ── */}
+      {mouse.x > 0 && (
+        <div
+          className="fixed pointer-events-none"
+          style={{
+            zIndex: 9999,
+            left: mouse.x - hotX,
+            top: mouse.y - hotY,
+            width: cursorW,
+            height: cursorH,
+            filter: overlayOpen ? "invert(1) brightness(10)" : "none",
+            transition: "filter 0.4s cubic-bezier(0.15,0.85,0.45,1)",
+          }}
+        >
+          <Image src="/logo.svg" alt="" fill className="object-contain" />
+        </div>
+      )}
+
+      {/* suppress unused var warning */}
+      {hoveredSlug && null}
     </>
   );
 }

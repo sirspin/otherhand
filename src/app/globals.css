@@ -14,7 +14,7 @@
   --color-grey: #ebebeb;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; cursor: none !important; }
 
 html { font-size: 14px; }
 
