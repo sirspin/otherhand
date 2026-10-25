@@ -1,6 +1,6 @@
 __pycache__/
 *.log*
 duo_watch_state.json
-probe_response.txt
+probe_response.json
 config.json
 .venv/

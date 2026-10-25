@@ -2,14 +2,23 @@
 """Watch Apple Store pickup availability for the iPhone Duo and alert on restock.
 
 Run:      python3 duo_watch.py
-Probe:    python3 duo_watch.py --probe        (dump the raw response, then exit)
+Stores:   python3 duo_watch.py --probe        (list stores in radius + save raw response)
 One shot: python3 duo_watch.py --once
 Notify:   python3 duo_watch.py --test-notify
 
-Apple's endpoint rejected the cloud sandbox this was written in (HTTP 541), so the
-response parser below was NOT verified against a live response. It fails closed:
-if the response does not look the way parse_stores() expects, the script exits and
-tells you to run --probe, instead of reporting "nothing in stock" forever.
+Data source: apple.com/shop/pickup-message-recommendations. The older
+fulfillment-messages endpoint now answers 541 to every plain request. The new one
+behaves differently, and the script is built around three observed quirks:
+
+  1. It only reports stock for ONE store: the store nearest the `location` ZIP.
+     So each store in the radius is queried using its own ZIP.
+  2. It lists up to 3 OTHER in-stock configurations of the same model, never the
+     queried part. So the script queries an unwatched "probe" part, and follows up
+     with a second probe if a response comes back full (3 entries).
+  3. It takes one `product` per request.
+
+Cost: one request per store in the radius per cycle (about 8 for 60630 at 25 mi),
+spaced a second or two apart, plus an occasional follow-up when a store is busy.
 """
 import argparse
 import json
@@ -22,24 +31,28 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlencode
 
 import requests
 
 # ---------------------------------------------------------------- config ----
-# Any key can be overridden by a config.json next to this file.
+# Any key can be overridden by a config.json next to this file (or --config PATH).
 CONFIG = {
-    "parts": {  # part number -> label shown in alerts
+    "parts": {  # watched part number -> label shown in alerts
         "MK1F4LL/A": "iPhone Duo 256GB Night Sky",
         "MK1E4LL/A": "iPhone Duo 256GB Star White",
         "MK1H4LL/A": "iPhone Duo 512GB Night Sky",
         "MK1G4LL/A": "iPhone Duo 512GB Star White",
     },
+    # Queried to see its siblings; it can never show up in its own results, so it
+    # must be a Duo part you do NOT watch (2TB Night Sky).
+    "probe_part": "MK1R4LL/A",
     "zip": "60630",
     "radius_miles": 25,
     "poll_seconds": 45,
     "jitter_seconds": 10,
+    "request_gap_seconds": 1.5,  # pause between the per-store requests inside a cycle
     "max_backoff_seconds": 600,
+    "store_refresh_seconds": 3600,
     "ntfy_topic": "CHANGE-ME-pick-a-long-random-topic",
     "ntfy_server": "https://ntfy.sh",
     "log_file": "duo_watch.log",
@@ -47,7 +60,7 @@ CONFIG = {
 }
 
 HERE = Path(__file__).resolve().parent
-ENDPOINT = "https://www.apple.com/shop/fulfillment-messages"
+ENDPOINT = "https://www.apple.com/shop/pickup-message-recommendations"
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -55,6 +68,8 @@ USER_AGENT = (
 BUY_URL = "https://www.apple.com/shop/product/{part}"  # 301s to the exact configuration page
 RATE_LIMIT_STATUSES = {429, 503}
 ERRORS_BEFORE_BACKOFF = 3  # for errors that are not an explicit 429/503
+SATURATION = 3  # max sibling entries Apple returns; a full response may be hiding more
+MAX_PROBES = 4  # per store per cycle, including the first
 
 log = logging.getLogger("duo_watch")
 
@@ -70,15 +85,11 @@ class ShapeError(Exception):
 
 
 # ----------------------------------------------------------------- fetch ----
-def fetch(parts, zip_code, timeout=20):
-    """One request covering every part. Returns the decoded JSON body."""
-    params = [("fae", "true"), ("pl", "true"), ("mts.0", "regular")]
-    params += [(f"parts.{i}", p) for i, p in enumerate(parts)]
-    params.append(("location", zip_code))
-    url = f"{ENDPOINT}?{urlencode(params, safe='/')}"
+def api_get(product, location, timeout=20):
     try:
         r = requests.get(
-            url,
+            ENDPOINT,
+            params={"fae": "true", "location": location, "product": product},
             headers={"User-Agent": USER_AGENT, "Accept": "application/json", "Accept-Language": "en-US,en;q=0.9"},
             timeout=timeout,
         )
@@ -93,61 +104,78 @@ def fetch(parts, zip_code, timeout=20):
 
 
 # ----------------------------------------------------------------- parse ----
-# UNVERIFIED: this is the response shape historically returned by this endpoint.
-#   body.content.pickupMessage.stores[] -> storeNumber, storeName, storeDistanceWithUnit,
-#       partsAvailability{part -> pickupDisplay ("available"/"unavailable"/...), storePickEligible}
-# Confirm with --probe and adjust here; nothing else in the script knows the shape.
 def parse_stores(data):
-    """Return [{id, name, distance, parts: {part: bool}}]. Raises ShapeError on surprises."""
-    try:
-        stores = data["body"]["content"]["pickupMessage"]["stores"]
-    except (KeyError, TypeError) as e:
-        raise ShapeError(f"missing body.content.pickupMessage.stores ({e!r})") from e
-    if not isinstance(stores, list):
-        raise ShapeError("stores is not a list")
+    """-> [{id, name, zip, distance, parts: {part: title}}], nearest store first.
+
+    `parts` holds only entries Apple marks available for pickup. An unrecognized
+    product comes back with no `stores` key, or with no PickupMessage at all; both parse to [].
+    """
+    body = data.get("body") if isinstance(data, dict) else None
+    if not isinstance(body, dict):
+        raise ShapeError("response has no body object")
     out = []
-    for s in stores:
+    for s in body.get("PickupMessage", {}).get("stores", []):
         try:
-            avail = {
-                part: bool(info.get("storePickEligible", True)) and info["pickupDisplay"] == "available"
-                for part, info in s["partsAvailability"].items()
-            }
+            parts = {}
+            for part, info in s["partsAvailability"].items():
+                if info.get("pickupDisplay") == "available" and info.get("storePickEligible", True):
+                    title = info.get("messageTypes", {}).get("regular", {}).get("storePickupProductTitle", "")
+                    parts[part] = title.replace("\xa0", " ")
             out.append(
                 {
                     "id": s["storeNumber"],
                     "name": s["storeName"],
-                    "distance": _distance_miles(s),
-                    "parts": avail,
+                    "zip": s["address"]["postalCode"],
+                    "distance": float(s["storedistance"]),
+                    "parts": parts,
                 }
             )
-        except (KeyError, TypeError, AttributeError) as e:
+        except (KeyError, TypeError, ValueError, AttributeError) as e:
             raise ShapeError(f"unexpected store entry ({e!r}): {json.dumps(s)[:300]}") from e
     return out
 
 
-def _distance_miles(store):
-    raw = store.get("storeDistanceWithUnit") or (store.get("retailStore") or {}).get("distanceWithUnit")
-    m = re.match(r"\s*([\d.,]+)\s*(mi|km)", raw or "", re.I)
-    if not m:
-        raise KeyError(f"distance (got {raw!r})")
-    val = float(m.group(1).replace(",", ""))
-    return val * 0.621371 if m.group(2).lower() == "km" else val
+# ---------------------------------------------------------------- logic -----
+def discover_stores(cfg):
+    """Stores within the radius of cfg zip, keyed by id, with distance from that ZIP."""
+    stores = parse_stores(api_get(cfg["probe_part"], cfg["zip"]))
+    return {s["id"]: s for s in stores if s["distance"] <= cfg["radius_miles"]}
 
 
-# ------------------------------------------------------------ transitions ---
-def find_new_availability(stores, radius, prev):
-    """Return (alerts, current). `current` is the set of (store_id, part) available in radius."""
-    current, alerts = set(), []
-    for s in stores:
-        if s["distance"] > radius:
-            continue
-        for part, ok in s["parts"].items():
-            if ok:
-                key = (s["id"], part)
-                current.add(key)
-                if key not in prev:
-                    alerts.append((s, part))
-    return alerts, current
+def check_store(cfg, store, sleep=time.sleep):
+    """Query one store. Returns (available, unavailable) subsets of the watched parts.
+
+    A watched part in neither set is unknown this cycle (hidden behind a full response)
+    and keeps its previous state.
+    """
+    watched = set(cfg["parts"])
+    probe, probed, visible, unavailable = cfg["probe_part"], [], set(), set()
+    for _ in range(MAX_PROBES):
+        probed.append(probe)
+        stores = parse_stores(api_get(probe, store["zip"]))
+        if not stores or stores[0]["id"] != store["id"]:
+            got = stores[0]["id"] if stores else None
+            log.warning("querying ZIP %s for %s evaluated %s instead; skipping store", store["zip"], store["id"], got)
+            return set(), set()
+        parts = stores[0]["parts"]
+        visible |= set(parts)
+        if watched <= visible:  # every watched part seen in stock; nothing more to learn
+            break
+        if len(parts) < SATURATION:  # complete view of everything except the probe itself
+            unavailable |= watched - set(parts) - {probe}
+            break
+        nxt = next((p for p in parts if p not in probed), None)
+        if nxt is None:
+            break
+        probe = nxt
+        sleep(cfg["request_gap_seconds"])
+    return watched & visible, (unavailable - visible)
+
+
+def apply_result(prev_parts, available, unavailable):
+    """-> (new_state_for_store, newly_available)."""
+    new = (set(prev_parts) - unavailable) | available
+    return new, available - set(prev_parts)
 
 
 # -------------------------------------------------------------- notifiers ---
@@ -198,11 +226,13 @@ def notify_all(notifiers, title, message, url):
 
 
 # --------------------------------------------------------------- plumbing ---
-def load_config():
+def load_config(path=None):
     cfg = dict(CONFIG)
-    p = HERE / "config.json"
+    p = Path(path) if path else HERE / "config.json"
     if p.exists():
         cfg.update(json.loads(p.read_text()))
+    if cfg["probe_part"] in cfg["parts"]:
+        sys.exit(f"probe_part {cfg['probe_part']} is also watched; it can never appear in its own results. Pick an unwatched Duo part.")
     return cfg
 
 
@@ -218,13 +248,14 @@ def setup_logging(path):
 
 def load_state(path):
     try:
-        return {tuple(k) for k in json.loads((HERE / path).read_text())}
-    except (OSError, ValueError):
-        return set()
+        raw = json.loads((HERE / path).read_text())
+        return {sid: set(parts) for sid, parts in raw.items()}
+    except (OSError, ValueError, AttributeError, TypeError):
+        return {}
 
 
-def save_state(path, current):
-    (HERE / path).write_text(json.dumps(sorted(current)))
+def save_state(path, state):
+    (HERE / path).write_text(json.dumps({sid: sorted(p) for sid, p in state.items() if p}))
 
 
 def sleep_for(cfg, errors, rate_limited):
@@ -236,61 +267,66 @@ def sleep_for(cfg, errors, rate_limited):
     return max(5, base + random.uniform(-cfg["jitter_seconds"], cfg["jitter_seconds"]))
 
 
-def validate_parts(cfg, stores):
-    """Warn about part numbers Apple's response never mentions (typo guard)."""
-    seen = {p for s in stores for p in s["parts"]}
-    if not stores:
-        log.warning("Apple returned no stores for %s; cannot validate part numbers", cfg["zip"])
-        return
-    for part in cfg["parts"]:
-        if part not in seen:
-            log.warning("PART NOT RECOGNIZED by Apple: %s (%s). It will never alert. Check for a typo.", part, cfg["parts"][part])
+def validate_parts(cfg):
+    """Warn about part numbers Apple does not recognize (it answers with zero stores) and stop watching them."""
+    for part in [cfg["probe_part"], *cfg["parts"]]:
+        if not parse_stores(api_get(part, cfg["zip"])):
+            if part == cfg["probe_part"]:  # typo, or Apple changed the response; either way nothing can be checked
+                raise ShapeError(f"probe part {part} returned no stores for ZIP {cfg['zip']}")
+            log.warning("PART NOT RECOGNIZED by Apple: %s (%s). It will never alert, so it is dropped. Check for a typo.", part, cfg["parts"][part])
+            del cfg["parts"][part]
+        time.sleep(cfg["request_gap_seconds"])
+    if not cfg["parts"]:
+        sys.exit("none of the configured parts are recognized by Apple; nothing to watch")
 
 
 def probe(cfg):
-    parts = list(cfg["parts"])
-    params = [("fae", "true"), ("pl", "true"), ("mts.0", "regular")] + [(f"parts.{i}", p) for i, p in enumerate(parts)] + [("location", cfg["zip"])]
-    r = requests.get(f"{ENDPOINT}?{urlencode(params, safe='/')}", headers={"User-Agent": USER_AGENT, "Accept": "application/json"}, timeout=20)
-    print(f"HTTP {r.status_code}  content-type: {r.headers.get('content-type')}  bytes: {len(r.content)}")
-    out = HERE / "probe_response.txt"
-    out.write_text(r.text)
-    print(f"full body saved to {out}\n")
-    print(r.text[:4000])
-    if r.status_code != 200:
-        print("\nNon-200: Apple rejected this request. Try from a different network before debugging the script.")
+    data = api_get(cfg["probe_part"], cfg["zip"])
+    out = HERE / "probe_response.json"
+    out.write_text(json.dumps(data, indent=1))
+    stores = parse_stores(data)
+    print(f"{len(stores)} stores near {cfg['zip']} (raw response saved to {out})")
+    for s in stores:
+        mark = "WATCHED" if s["distance"] <= cfg["radius_miles"] else "outside radius"
+        print(f"  {s['id']}  {s['name']:<22} ZIP {s['zip']}  {s['distance']:>6.1f} mi  {mark}")
     return 0
 
 
-def check_once(cfg, notifiers, prev, first):
-    parts = list(cfg["parts"])
-    t0 = time.time()
-    stores = parse_stores(fetch(parts, cfg["zip"]))
-    if first:
-        validate_parts(cfg, stores)
-    alerts, current = find_new_availability(stores, cfg["radius_miles"], prev)
-    in_radius = [s for s in stores if s["distance"] <= cfg["radius_miles"]]
-    log.info(
-        "check ok: %d stores returned, %d within %s mi, %d (store,part) available, %d new, %.1fs",
-        len(stores), len(in_radius), cfg["radius_miles"], len(current), len(alerts), time.time() - t0,
-    )
-    for s, part in alerts:
-        label = cfg["parts"].get(part, part)
-        url = BUY_URL.format(part=part)
-        title = f"{label} in stock"
-        msg = f"{s['name']} ({s['distance']:.1f} mi). {url}"
-        log.info("ALERT %s at %s (%.1f mi) %s", label, s["name"], s["distance"], url)
-        notify_all(notifiers, title, msg, url)
-    return current
+def run_cycle(cfg, stores, notifiers, state):
+    """One pass over every watched store. Mutates `state`; returns (ok_stores, failed_stores)."""
+    t0, ok, failed, new_total, avail_total = time.time(), 0, 0, 0, 0
+    for i, store in enumerate(sorted(stores.values(), key=lambda s: s["distance"])):
+        if i:
+            time.sleep(cfg["request_gap_seconds"] * random.uniform(0.7, 1.3))
+        try:
+            available, unavailable = check_store(cfg, store)
+        except FetchError as e:
+            if e.status in RATE_LIMIT_STATUSES:
+                raise
+            failed += 1
+            log.warning("store %s (%s) check failed: %s", store["id"], store["name"], e)
+            continue
+        ok += 1
+        state[store["id"]], new = apply_result(state.get(store["id"], set()), available, unavailable)
+        avail_total += len(state[store["id"]])
+        new_total += len(new)
+        for part in sorted(new):
+            label, url = cfg["parts"][part], BUY_URL.format(part=part)
+            log.info("ALERT %s at %s (%.1f mi) %s", label, store["name"], store["distance"], url)
+            notify_all(notifiers, f"{label} in stock", f"{store['name']} ({store['distance']:.1f} mi). {url}", url)
+    log.info("check: %d/%d stores ok, %d (store,part) available, %d new, %.1fs", ok, ok + failed, avail_total, new_total, time.time() - t0)
+    return ok, failed
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--probe", action="store_true", help="dump the raw endpoint response and exit")
+    ap.add_argument("--probe", action="store_true", help="list stores in range, save the raw response, exit")
     ap.add_argument("--once", action="store_true", help="run a single check and exit")
     ap.add_argument("--test-notify", action="store_true", help="send a test notification and exit")
+    ap.add_argument("--config", help="path to a JSON file overriding CONFIG keys")
     args = ap.parse_args()
 
-    cfg = load_config()
+    cfg = load_config(args.config)
     setup_logging(cfg["log_file"])
     notifiers = build_notifiers(cfg)
 
@@ -300,17 +336,25 @@ def main():
         notify_all(notifiers, "duo_watch test", "Notifications are working.", BUY_URL.format(part=next(iter(cfg["parts"]))))
         return 0
 
-    prev, errors, first = load_state(cfg["state_file"]), 0, True
-    log.info("watching %d parts near %s within %s mi", len(cfg["parts"]), cfg["zip"], cfg["radius_miles"])
+    state, errors, first, validated, stores, stores_at = load_state(cfg["state_file"]), 0, True, False, {}, 0.0
+    log.info("watching %d parts within %s mi of %s", len(cfg["parts"]), cfg["radius_miles"], cfg["zip"])
     while True:
         rate_limited = False
         try:
-            prev = check_once(cfg, notifiers, prev, first)
-            save_state(cfg["state_file"], prev)
-            errors, first = 0, False
+            if not validated:
+                validate_parts(cfg)
+                validated = True
+            if not stores or time.time() - stores_at > cfg["store_refresh_seconds"]:
+                stores, stores_at = discover_stores(cfg), time.time()
+                log.info("stores in range: %s", ", ".join(f"{s['name']} ({s['distance']:.1f} mi)" for s in stores.values()) or "none")
+                if not stores:
+                    raise FetchError("no stores returned for this ZIP/radius")
+            ok, failed = run_cycle(cfg, stores, notifiers, state)
+            save_state(cfg["state_file"], state)
+            errors, first = (errors + 1, first) if ok == 0 else (0, False)
         except ShapeError as e:
             if first:
-                log.error("Response shape not recognized: %s\nRun `python3 duo_watch.py --probe` and fix parse_stores().", e)
+                log.error("Response shape not recognized: %s\nRun `python3 duo_watch.py --probe` and inspect probe_response.json.", e)
                 return 2
             errors += 1
             log.error("shape changed mid-run: %s", e)
